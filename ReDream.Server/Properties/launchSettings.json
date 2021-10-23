@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "ReDream.Server": {
+      "commandName": "Project",
+      "commandLineArgs": "./test_cs"
+    }
+  }
+}
