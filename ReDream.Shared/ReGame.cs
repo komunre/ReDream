@@ -16,7 +16,7 @@ namespace ReDream.Shared
     {
         protected List<GameObject> gameObjects = new();
         protected NetServer? server;
-        public string action = "";
+        public string Action = "";
         
         public void Host(int port)
         {
@@ -42,7 +42,7 @@ namespace ReDream.Shared
                         {
                             case "move":
                                 var action = message.ReadString();
-                                this.action = action;
+                                this.Action = action;
                                 break;
                             case "msg":
                                 var serObject = message.ReadString();
@@ -163,6 +163,11 @@ namespace ReDream.Shared
         }
 
         public virtual void Update(ReGame game)
+        {
+
+        }
+
+        public virtual void Start(ReGame game)
         {
 
         }

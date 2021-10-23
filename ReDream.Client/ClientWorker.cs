@@ -6,17 +6,19 @@ using System.Threading.Tasks;
 using ReDream.Shared;
 using Raylib_cs;
 using Lidgren.Network;
+using System.Reflection;
 
 namespace ReDream.Client
 {
-    class ClientWorker 
+    public class ClientWorker 
     {
         ScriptWorker worker = new();
        
 
         public ClientWorker()
         {
-            worker.Initialize("client_lua/");
+            worker.AddType(typeof(ClientWorker).GetTypeInfo().Assembly.Location);
+            worker.Initialize("client_cs/");
             worker.eng.SetValue("getInput", new Func<int>(GetInput));
             worker.eng.SetValue("sendInput", new Action<string>(SendInput));
             Raylib.InitWindow(800, 600, "ReDream Client");
@@ -31,7 +33,7 @@ namespace ReDream.Client
             Raylib.EndDrawing();
         }
 
-        protected NetClient client;
+        protected static NetClient client;
 
         public void Connect(string url, int port)
         {
@@ -41,7 +43,7 @@ namespace ReDream.Client
             client.Connect(url, port);
         }
 
-        public void SendInput(string action)
+        public static void SendInput(string action)
         {
             var msg = client.CreateMessage();
             msg.Write("move");
@@ -49,7 +51,7 @@ namespace ReDream.Client
             client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered);
         }
 
-        public int GetInput()
+        public static int GetInput()
         {
             return Raylib.GetKeyPressed();
         }

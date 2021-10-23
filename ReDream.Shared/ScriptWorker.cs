@@ -32,6 +32,7 @@ namespace ReDream.Shared
         public ReGame game;
         private List<Assembly> _assemblies = new();
         private Dictionary<GameObject, Type> _gameObjects = new();
+        public List<string> AdditionalTypes = new();
         public ScriptWorker()
         {
             eng = new Engine(options =>
@@ -46,12 +47,17 @@ namespace ReDream.Shared
             eng.SetValue("gameObj", typeof(GameObject));
             eng.SetValue("getFile", new Func<string, JsValue>(GetFile));
         }
+        public void AddType(string type)
+        {
+            AdditionalTypes.Add(type);
+        }
         public void Initialize(string path)
         {
             workingPath = path;
             //blacklist = File.ReadAllText(workingPath + "/blacklist.txt").Split("\n");
             //ProcessDirectory(workingPath, true);
             LoadDirectory(workingPath, true);
+            ProcessCSharp(true);
         }
         public void Update()
         {
@@ -105,13 +111,17 @@ namespace ReDream.Shared
         {
             var rel = Path.GetFullPath(fileName);
             var outName = rel[rel.Length - 1] + ".dll";
-            var refPaths = new[] {
+            var refList = new List<string>();
+            refList.AddRange( new[] {
                 typeof(System.Object).GetTypeInfo().Assembly.Location,
                 typeof(ReTools).GetTypeInfo().Assembly.Location,
                 typeof(GameObject).GetTypeInfo().Assembly.Location,
                 typeof(ReGame).GetTypeInfo().Assembly.Location,
                 Path.Combine(Path.GetDirectoryName(typeof(System.Runtime.GCSettings).GetTypeInfo().Assembly.Location), "System.Runtime.dll")
-            };
+                }
+            );
+            refList.AddRange(AdditionalTypes);
+            var refPaths = refList.ToArray();
             var references = refPaths.Select(r => MetadataReference.CreateFromFile(r)).ToArray();
             var syntaxTree = CSharpSyntaxTree.ParseText(File.ReadAllText(fileName));
             var compilation = CSharpCompilation.Create(outName, new[] { syntaxTree }, references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
@@ -168,8 +178,16 @@ namespace ReDream.Shared
         {
             foreach (var obj in _gameObjects)
             {
-                var meth = obj.Value.GetMethod("Update");
-                meth.Invoke(obj.Key, new[] { game });
+                if (!start)
+                {
+                    var meth = obj.Value.GetMethod("Update");
+                    meth.Invoke(obj.Key, new[] { game });
+                }
+                else
+                {
+                    var meth = obj.Value.GetMethod("Start");
+                    meth.Invoke(obj.Key, new[] { game });
+                }
             }
         }
 
