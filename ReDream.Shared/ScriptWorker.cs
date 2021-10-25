@@ -208,20 +208,17 @@ namespace ReDream.Shared
 
         protected void ProcessCSharp(bool start)
         {
-            lock (_gameObjects)
+            foreach (var obj in _gameObjects)
             {
-                foreach (var obj in _gameObjects)
+                if (!start)
                 {
-                    if (!start)
-                    {
-                        var meth = obj.Value.GetMethod("Update");
-                        meth.Invoke(obj.Key, new[] { game });
-                    }
-                    else
-                    {
-                        var meth = obj.Value.GetMethod("Start");
-                        meth.Invoke(obj.Key, new[] { game });
-                    }
+                    var meth = obj.Value.GetMethod("Update");
+                    meth.Invoke(obj.Key, new[] { game });
+                }
+                else
+                {
+                    var meth = obj.Value.GetMethod("Start");
+                    meth.Invoke(obj.Key, new[] { game });
                 }
             }
         }

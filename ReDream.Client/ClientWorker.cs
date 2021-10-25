@@ -10,6 +10,7 @@ using System.Reflection;
 using System.IO;
 using System.Threading;
 using System.Runtime.Loader;
+using System.Numerics;
 
 namespace ReDream.Client
 {
@@ -18,6 +19,8 @@ namespace ReDream.Client
         private ScriptWorker worker = new();
         private List<string> ReceivedFiles = new();
         private Dictionary<string, Texture2D> _textures = new();
+        private List<string> _requested = new();
+        private Dictionary<string, Vector2> _drawingTextures = new();
 
         public ClientWorker()
         {
@@ -51,6 +54,11 @@ namespace ReDream.Client
             }
             Raylib.BeginDrawing();
             Raylib.ClearBackground(new Color(255, 255, 255, 255));
+
+            foreach (var tex in _drawingTextures)
+            {
+                Raylib.DrawTexture(_textures[tex.Key], (int)tex.Value.X, (int)tex.Value.Y, Color.WHITE);
+            }
             Raylib.EndDrawing();
         }
 
@@ -105,7 +113,7 @@ namespace ReDream.Client
                         // handle custom messages
                         switch (message.ReadString())
                         {
-                            case "draw":
+                            case "redraw":
                                 var tex = message.ReadString();
                                 var x = message.ReadInt32();
                                 var y = message.ReadInt32();
@@ -114,11 +122,16 @@ namespace ReDream.Client
                                 {
                                     if (!worker.Compiled) return;
                                     if (!_textures.ContainsKey(tex)) return;
-                                    Raylib.BeginDrawing();
-                                    Raylib.DrawTexture(_textures[tex], x * 32, y * 32, Color.WHITE);
-                                    Raylib.EndDrawing();
+                                    if (_drawingTextures.ContainsKey(tex))
+                                    {
+                                        _drawingTextures[tex] = new Vector2(x, y);
+                                    }
+                                    else
+                                    {
+                                        _drawingTextures.Add(tex, new Vector2(x, y));
+                                    }
                                 }
-                                else
+                                else if (!_requested.Contains(tex))
                                 {
                                     DownloadTexture(tex);
                                 }
@@ -140,7 +153,8 @@ namespace ReDream.Client
                                 ReceivedFiles.Add(downFile);
                                 break;
                             case "reload":
-                                worker.ReloadCode();
+                                var reloadThread = new Thread(worker.ReloadCode);
+                                reloadThread.Start();
                                 break;
                         }
 

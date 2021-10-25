@@ -120,7 +120,7 @@ namespace ReDream.Shared
 
         protected void SendBinaryFile(byte[] data, string name, NetConnection sender)
         {
-            if (server == null) return;
+            if (server == null || sender.Status != NetConnectionStatus.Connected) return;
             var msg = server.CreateMessage();
             msg.Write("texture");
             msg.Write(name);
@@ -183,7 +183,7 @@ namespace ReDream.Shared
         {
             if (server == null) return;
             var message = server.CreateMessage();
-            message.Write("draw");
+            message.Write("redraw");
             message.Write(obj.Texture);
             message.Write(obj.X);
             message.Write(obj.Y);
@@ -210,6 +210,9 @@ namespace ReDream.Shared
         public Dictionary<string, object> Data = new();
         public List<string> Messages = new();
 
+        protected int LastX = 0;
+        protected int LastY = 0;
+
         public GameObject()
         {
         }
@@ -231,7 +234,12 @@ namespace ReDream.Shared
 
         public virtual void Update(ReGame game)
         {
-
+            if (LastX != X || LastY != Y)
+            {
+                game.DrawObject(this);
+                LastX = X;
+                LastY = Y;
+            }
         }
 
         public virtual void Start(ReGame game)
