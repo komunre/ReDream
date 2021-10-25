@@ -13,6 +13,7 @@ namespace ReDream.Server
         public ServerWorker(string path, string clientPath)
         {
             worker.Initialize(path, clientPath, false);
+            worker.ReloadCode();
         }
 
         public void Update()
