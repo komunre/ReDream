@@ -21,25 +21,26 @@ namespace ReDream.Client
         private Dictionary<string, Texture2D> _textures = new();
         private List<string> _requested = new();
         private Dictionary<string, Vector2> _drawingTextures = new();
+        private const string LocalClientPath = "client_cs/";
 
         public ClientWorker()
         {
-            worker.AddType(typeof(ClientWorker).GetTypeInfo().Assembly.Location);
-            worker.Initialize("client_cs/", "client_cs/", true);
-            worker.eng.SetValue("getInput", new Func<int>(GetInput));
-            worker.eng.SetValue("sendInput", new Action<string>(SendInput));
-            if (!Directory.Exists(ScriptWorker.ClientPath))
+            if (!Directory.Exists(LocalClientPath))
             {
-                Directory.CreateDirectory(ScriptWorker.ClientPath);
+                Directory.CreateDirectory(LocalClientPath);
             }
             else
             {
-                var files = Directory.GetFiles(ScriptWorker.ClientPath);
+                var files = Directory.GetFiles(LocalClientPath);
                 foreach (var file in files)
                 {
                     File.Delete(file);
                 }
             }
+            worker.AddType(typeof(ClientWorker).GetTypeInfo().Assembly.Location);
+            worker.Initialize(LocalClientPath, LocalClientPath, true);
+            worker.eng.SetValue("getInput", new Func<int>(GetInput));
+            worker.eng.SetValue("sendInput", new Action<string>(SendInput));
             Raylib.InitWindow(800, 600, "ReDream Client");
             Raylib.SetTargetFPS(60);
         }
@@ -49,7 +50,6 @@ namespace ReDream.Client
             worker.Update();
             if (ReceivedFiles.Count == 0)
             {
-                Thread.Sleep(2000);
                 RequestCode();
             }
             Raylib.BeginDrawing();
@@ -153,8 +153,7 @@ namespace ReDream.Client
                                 ReceivedFiles.Add(downFile);
                                 break;
                             case "reload":
-                                var reloadThread = new Thread(worker.ReloadCode);
-                                reloadThread.Start();
+                                worker.ReloadCode();
                                 break;
                         }
 

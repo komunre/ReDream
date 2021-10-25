@@ -17,6 +17,7 @@ namespace ReDream.Shared
         protected List<GameObject> gameObjects = new();
         protected NetServer? server;
         public string Action = "";
+        protected List<NetConnection> CodeSent = new();
         
         public void Host(int port)
         {
@@ -76,6 +77,7 @@ namespace ReDream.Shared
                                 catch { }
                                 break;
                             case "code":
+                                if (CodeSent.Contains(message.SenderConnection)) return;
                                 foreach (var file in Directory.GetFiles(ScriptWorker.ClientPath))
                                 {
                                     var splitted = Path.GetFullPath(file).Split("/");
@@ -90,6 +92,7 @@ namespace ReDream.Shared
                                 var msg = server.CreateMessage();
                                 msg.Write("reload");
                                 server.SendMessage(msg, message.SenderConnection, NetDeliveryMethod.ReliableOrdered);
+                                CodeSent.Add(message.SenderConnection);
                                 break;
                         }
                         

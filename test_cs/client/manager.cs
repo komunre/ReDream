@@ -9,7 +9,7 @@ namespace ClientCode {
 			
 		}
 		public override void Update(ReGame game) {
-			
+			ClientTools.Works();
 		}
 	}
 }

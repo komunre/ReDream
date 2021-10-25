@@ -34,9 +34,11 @@ namespace ReDream.Shared
         private List<Assembly> _assemblies = new();
         private Dictionary<GameObject, Type> _gameObjects = new();
         public List<string> AdditionalTypes = new();
+        private List<string> CompiledTypes = new();
         public bool Client = false;
         private AssemblyLoadContext _context = new AssemblyLoadContext("game", true);
         public bool Compiled = false;
+        public bool CompilationStarted = false;
         private int _filesLoaded = 0;
         private int _filesToLoad = 0;
         public ScriptWorker()
@@ -71,6 +73,8 @@ namespace ReDream.Shared
         {
             lock (_gameObjects)
             {
+                if (CompilationStarted && !Compiled) return;
+                CompilationStarted = true;
                 _gameObjects.Clear();
                 _context.Unload();
                 _context = new AssemblyLoadContext("game", true);
@@ -86,6 +90,7 @@ namespace ReDream.Shared
             if (_filesLoaded >= _filesToLoad)
             {
                 Compiled = true;
+                CompilationStarted = false;
                 ProcessCSharp(false);
             }
         }
@@ -150,43 +155,47 @@ namespace ReDream.Shared
                 }
             );
             refList.AddRange(AdditionalTypes);
+            refList.AddRange(CompiledTypes);
             var refPaths = refList.ToArray();
             var references = refPaths.Select(r => MetadataReference.CreateFromFile(r)).ToArray();
             var syntaxTree = CSharpSyntaxTree.ParseText(File.ReadAllText(fileName));
             var compilation = CSharpCompilation.Create(outName, new[] { syntaxTree }, references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-            using (var ms = new MemoryStream())
+            var ms = new FileStream(outName, FileMode.Create);
+            var result = compilation.Emit(ms);
+
+            ms.Close();
+
+            if (!result.Success)
             {
-                var result = compilation.Emit(ms);
+                ReTools.Log("COMPILATION ERROR");
+                IEnumerable<Diagnostic> failures = result.Diagnostics.Where(diagnostic =>
+                    diagnostic.IsWarningAsError ||
+                    diagnostic.Severity == DiagnosticSeverity.Error);
 
-                if (!result.Success)
+                foreach (Diagnostic diagnostic in failures)
                 {
-                    ReTools.Log("COMPILATION ERROR");
-                    IEnumerable<Diagnostic> failures = result.Diagnostics.Where(diagnostic =>
-                        diagnostic.IsWarningAsError ||
-                        diagnostic.Severity == DiagnosticSeverity.Error);
-
-                    foreach (Diagnostic diagnostic in failures)
-                    {
-                        Console.Error.WriteLine("\t{0}: {1}", diagnostic.Id, diagnostic.GetMessage());
-                    }
-                    _filesToLoad--;
+                    Console.Error.WriteLine("\t{0}: {1}", diagnostic.Id, diagnostic.GetMessage());
                 }
-                else
-                {
-                    ReTools.Log("Compiled!");
-                    ms.Seek(0, SeekOrigin.Begin);
+                _filesToLoad--;
+            }
+            else
+            {
+                ReTools.Log("Compiled!");
 
-                    Assembly assembly = _context.LoadFromStream(ms);
-                    var objects = assembly.ExportedTypes.ToList().Where(t => t.BaseType.IsAssignableFrom(typeof(GameObject)));
-                    foreach (var obj in objects)
+                Assembly assembly = _context.LoadFromAssemblyPath(Path.GetFullPath(outName));
+                var objects = assembly.ExportedTypes.ToList().Where(t => t.BaseType.IsAssignableFrom(typeof(GameObject)));
+                foreach (var obj in objects)
+                {
+                    if (!obj.IsAbstract)
                     {
                         var target = Activator.CreateInstance(obj);
                         _gameObjects.Add(target as GameObject, obj);
                     }
-
-                    _filesLoaded++;
+                    CompiledTypes.Add(assembly.Location);
                 }
+
+                _filesLoaded++;
             }
 
             /*var codeProvider = new CSharpCodeProvider();
