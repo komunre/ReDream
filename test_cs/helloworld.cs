@@ -1,10 +1,12 @@
-using System;
 using ReDream.Shared;
 
 namespace TestGame {
 	public class TestClass : GameObject {
 		public override void Start(ReGame game) {
+			Texture = "test.png";
 			game.Host(9999);
+			X = 1;
+			Y = 1;
 		}
 		public override void Update(ReGame game) {
 			game.ReceiveMessages();
@@ -13,6 +15,7 @@ namespace TestGame {
 				X++;
 			}
 			game.Action = "";
+			game.DrawObject(this);
 		}
 	}
 }

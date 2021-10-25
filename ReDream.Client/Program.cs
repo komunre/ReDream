@@ -12,6 +12,7 @@ namespace ReDream.Client
 
             while (!Raylib.WindowShouldClose()) {
                 client.Update();
+                client.ReceiveMessages();
             }
         }
     }

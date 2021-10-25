@@ -66,6 +66,31 @@ namespace ReDream.Shared
                                 if (dataDes == null) return;
                                 obj1.Data = dataDes;
                                 break;
+                            case "download":
+                                try
+                                {
+                                    var texName = message.ReadString();
+                                    var textureData = File.ReadAllBytes(Path.Combine(ScriptWorker.ClientPath, texName));
+                                    SendBinaryFile(textureData, texName, message.SenderConnection);
+                                }
+                                catch { }
+                                break;
+                            case "code":
+                                foreach (var file in Directory.GetFiles(ScriptWorker.ClientPath))
+                                {
+                                    var splitted = Path.GetFullPath(file).Split("/");
+                                    if (splitted.Length < 2)
+                                    {
+                                        splitted = Path.GetFullPath(file).Split("\\");
+                                    }
+                                    var filename = splitted[splitted.Length - 1];
+                                    if (filename.Split(".").Last() != "cs") continue;
+                                    SendFile(File.ReadAllText(file), filename, message.SenderConnection);
+                                }
+                                var msg = server.CreateMessage();
+                                msg.Write("reload");
+                                server.SendMessage(msg, message.SenderConnection, NetDeliveryMethod.ReliableOrdered);
+                                break;
                         }
                         
                         break;
@@ -91,6 +116,27 @@ namespace ReDream.Shared
                         break;
                 }
             }
+        }
+
+        protected void SendBinaryFile(byte[] data, string name, NetConnection sender)
+        {
+            if (server == null) return;
+            var msg = server.CreateMessage();
+            msg.Write("texture");
+            msg.Write(name);
+            msg.Write(data.Length);
+            msg.Write(data);
+            server.SendMessage(msg, sender, NetDeliveryMethod.ReliableOrdered);
+        }
+        
+        protected void SendFile(string data, string name, NetConnection sender)
+        {
+            if (server == null) return;
+            var msg = server.CreateMessage();
+            msg.Write("upload");
+            msg.Write(name);
+            msg.Write(data);
+            server.SendMessage(msg, sender, NetDeliveryMethod.ReliableOrdered);
         }
 
         public void SendMessage(GameObject obj, string msg)
@@ -131,6 +177,27 @@ namespace ReDream.Shared
                 }
             }
             return found.ToArray();
+        }
+
+        public void DrawObject(GameObject obj)
+        {
+            if (server == null) return;
+            var message = server.CreateMessage();
+            message.Write("draw");
+            message.Write(obj.Texture);
+            message.Write(obj.X);
+            message.Write(obj.Y);
+
+            BroadcastMsg(message);
+        }
+
+        protected void BroadcastMsg(NetOutgoingMessage msg)
+        {
+            if (server == null) return;
+            foreach (var conneciton in server.Connections)
+            {
+                server.SendMessage(msg, conneciton, NetDeliveryMethod.ReliableOrdered);
+            }
         }
     }
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 
 namespace ReDream.Server
 {
@@ -6,7 +7,7 @@ namespace ReDream.Server
     {
         static void Main(string[] args)
         {
-            var worker = new ServerWorker(args[0]);
+            var worker = new ServerWorker(args[0], Path.Combine(args[0], "client"));
 
             while (true)
             {

@@ -26,13 +26,19 @@ namespace ReDream.Shared
     public class ScriptWorker
     {
         string[] files;
-        string workingPath;
+        public static string workingPath;
+        public static string ClientPath;
         public Engine eng;
         string[] blacklist;
         public ReGame game;
         private List<Assembly> _assemblies = new();
         private Dictionary<GameObject, Type> _gameObjects = new();
         public List<string> AdditionalTypes = new();
+        public bool Client = false;
+        private AssemblyLoadContext _context = new AssemblyLoadContext("game", true);
+        public bool Compiled = false;
+        private int _filesLoaded = 0;
+        private int _filesToLoad = 0;
         public ScriptWorker()
         {
             eng = new Engine(options =>
@@ -51,20 +57,37 @@ namespace ReDream.Shared
         {
             AdditionalTypes.Add(type);
         }
-        public void Initialize(string path)
+        public void Initialize(string path, string clientPath, bool client)
         {
             workingPath = path;
+            ClientPath = clientPath;
+            Client = client;
             //blacklist = File.ReadAllText(workingPath + "/blacklist.txt").Split("\n");
             //ProcessDirectory(workingPath, true);
-            LoadDirectory(workingPath, true);
-            ProcessCSharp(true);
+            ReloadCode();
+        }
+
+        public void ReloadCode()
+        {
+            lock (_gameObjects)
+            {
+                _gameObjects.Clear();
+                _context.Unload();
+                _context = new AssemblyLoadContext("game", true);
+                LoadDirectory(workingPath, true);
+                ProcessCSharp(true);
+            }
         }
         public void Update()
         {
             if (workingPath == null) return;
             //ProcessFile(workingPath + "/index.js");
             //ProcessDirectory(workingPath, false);
-            ProcessCSharp(false);
+            if (_filesLoaded >= _filesToLoad)
+            {
+                Compiled = true;
+                ProcessCSharp(false);
+            }
         }
 
         protected JsValue GetFile(string path)
@@ -81,36 +104,42 @@ namespace ReDream.Shared
             return null;
         }
 
-        protected void ProcessDirectory(string targetDirectory, bool start)
-        {
-            // Process the list of files found in the directory.
-            string[] fileEntries = Directory.GetFiles(targetDirectory);
-            foreach (string fileName in fileEntries)
-                ProcessFile(fileName, start);
-
-            // Recurse into subdirectories of this directory.
-            string[] subdirectoryEntries = Directory.GetDirectories(targetDirectory);
-            foreach (string subdirectory in subdirectoryEntries)
-                ProcessDirectory(subdirectory, start);
-        }
-
         protected void LoadDirectory(string targetDirectory, bool start)
         {
+            if (Path.GetFullPath(targetDirectory).Equals(Path.GetFullPath(ClientPath)) && !Client) return;
+            var progressing = false;
             // Process the list of files found in the directory.
             string[] fileEntries = Directory.GetFiles(targetDirectory);
+            _filesToLoad += fileEntries.Length;
             foreach (string fileName in fileEntries)
                 CompileFile(fileName);
 
             // Recurse into subdirectories of this directory.
             string[] subdirectoryEntries = Directory.GetDirectories(targetDirectory);
             foreach (string subdirectory in subdirectoryEntries)
+            {
+                progressing = true;
                 LoadDirectory(subdirectory, start);
+            }
         }
 
         protected void CompileFile(string fileName)
         {
+            var dotSplit = fileName.Split(".");
+            var format = dotSplit[dotSplit.Length - 1];
+            if (format != "cs")
+            {
+                _filesToLoad--;
+                return;
+            }
+
             var rel = Path.GetFullPath(fileName);
-            var outName = rel[rel.Length - 1] + ".dll";
+            var splitted = rel.Split("/");
+            if (splitted.Length < 2)
+            {
+                splitted = rel.Split("\\");
+            }
+            var outName = splitted[splitted.Length - 1] + ".dll";
             var refList = new List<string>();
             refList.AddRange( new[] {
                 typeof(System.Object).GetTypeInfo().Assembly.Location,
@@ -141,19 +170,22 @@ namespace ReDream.Shared
                     {
                         Console.Error.WriteLine("\t{0}: {1}", diagnostic.Id, diagnostic.GetMessage());
                     }
+                    _filesToLoad--;
                 }
                 else
                 {
                     ReTools.Log("Compiled!");
                     ms.Seek(0, SeekOrigin.Begin);
 
-                    Assembly assembly = AssemblyLoadContext.Default.LoadFromStream(ms);
+                    Assembly assembly = _context.LoadFromStream(ms);
                     var objects = assembly.ExportedTypes.ToList().Where(t => t.BaseType.IsAssignableFrom(typeof(GameObject)));
                     foreach (var obj in objects)
                     {
                         var target = Activator.CreateInstance(obj);
                         _gameObjects.Add(target as GameObject, obj);
                     }
+
+                    _filesLoaded++;
                 }
             }
 
@@ -176,39 +208,21 @@ namespace ReDream.Shared
 
         protected void ProcessCSharp(bool start)
         {
-            foreach (var obj in _gameObjects)
+            lock (_gameObjects)
             {
-                if (!start)
+                foreach (var obj in _gameObjects)
                 {
-                    var meth = obj.Value.GetMethod("Update");
-                    meth.Invoke(obj.Key, new[] { game });
+                    if (!start)
+                    {
+                        var meth = obj.Value.GetMethod("Update");
+                        meth.Invoke(obj.Key, new[] { game });
+                    }
+                    else
+                    {
+                        var meth = obj.Value.GetMethod("Start");
+                        meth.Invoke(obj.Key, new[] { game });
+                    }
                 }
-                else
-                {
-                    var meth = obj.Value.GetMethod("Start");
-                    meth.Invoke(obj.Key, new[] { game });
-                }
-            }
-        }
-
-        protected void ProcessFile(string fileName, bool start)
-        {
-            if (fileName.IndexOf("start.js") == 0) return;
-            try
-            {
-                if (!start)
-                {
-                    eng.Execute(File.ReadAllText(fileName)).GetValue("update").Invoke();
-                }
-                else
-                {
-                    eng.Execute(File.ReadAllText(fileName)).GetValue("start").Invoke();
-                }
-            }
-            catch (Exception e)
-            {
-                ReTools.Log("ERROR in file: " + fileName);
-                ReTools.Log("ERROR: " + e.Message);
             }
         }
     }

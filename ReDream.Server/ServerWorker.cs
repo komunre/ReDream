@@ -10,9 +10,9 @@ namespace ReDream.Server
     public class ServerWorker
     {
         ScriptWorker worker = new();
-        public ServerWorker(string path)
+        public ServerWorker(string path, string clientPath)
         {
-            worker.Initialize(path);
+            worker.Initialize(path, clientPath, false);
         }
 
         public void Update()
